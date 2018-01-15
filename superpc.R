@@ -1,11 +1,25 @@
 #Superpca
 library(superpc)
+library(tidyverse)
 
 #obtain gene expression data
 gene_expression <- read_table2("brca_metabric/data_expression.txt", col_names = TRUE)
 
+#do you need to sample genes? 
+genes <- gene_expression[sample(nrow(gene_expression), 100), ]
+
+#imput (with knn) 
+require(impute)
+
+genes_impute <- genes %>%
+  select(-Entrez_Gene_Id, -Hugo_Symbol) %>%
+  as.matrix()
+genes_impute <- impute.knn(genes_impute, k = 10)$data
+
+#or drop NA values
+
 #obtain id
-id_gene_expression <- gsub("-", ".", colnames(gene_expression)[3:1906])
+id_gene_expression <- gsub("-", ".", colnames(genes)[3:1906])
 
 #from clinical data keep observations with gene expression
 
@@ -29,15 +43,9 @@ surv_id <- Y$sample
 
 all(id_gene_expression == surv_id)
 
-#Extract features X
-X <- gene_expression %>%
-  select(starts_with("MB")) %>%
-  as.matrix()
-
 #prepare for spca
-data <- list( x=X, y = surv_time, censoring.status = surv_status, 
-              featurenames = gene_expression$Hugo_Symbol)
+data <- list( x=genes_impute, y = surv_time, censoring.status = surv_status, 
+              featurenames = genes$Hugo_Symbol)
 
 #train superpc
-
 fitsuperpc <- superpc.train(data, type="survival")
