@@ -6,7 +6,7 @@ mycgds = CGDS("http://www.cbioportal.org/public-portal/")
 test(mycgds)
 
 # Get list of cancer studies at server
-list_cancer = getCancerStudies(mycgds)
+#list_cancer = getCancerStudies(mycgds)
 
 # Get available case lists (collection of samples) for a given cancer study
 mycancerstudy = getCancerStudies(mycgds)[19,1]
@@ -19,6 +19,9 @@ mygeneticprofile = getGeneticProfiles(mycgds,mycancerstudy)[4,1]
 metabric_slice <- getProfileData(mycgds,c("LIFR", "DNAH5", "MAPEK1", "PIK3R1",
                         "NRF21","CHD1","APC"),mygeneticprofile,mycaselist)
 
+getMutationData(mycgds,c("LIFR", "DNAH5", "MAPEK1", "PIK3R1",
+                         "NRF21","CHD1","APC"),mygeneticprofile,mycaselist)
+
 # Get clinical data for the case list
 metabric_clinicaldata = getClinicalData(mycgds,mycaselist)
 
@@ -26,3 +29,6 @@ metabric_clinicaldata = getClinicalData(mycgds,mycaselist)
 help('cgdsr')
 help('CGDS')
 
+library(tidyverse)
+metabric_clinicaldata <- as.tibble(metabric_clinicaldata)
+metabric_clinicaldata[metabric_clinicaldata == "" | metabric_clinicaldata == " "] <- NA 
