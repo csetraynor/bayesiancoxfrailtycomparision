@@ -36,7 +36,7 @@ aggr(g_clin_tib, prop = FALSE, combined = TRUE, numbers = TRUE, sortVars = TRUE,
 
 ##sample
 set.seed(1573)
-g_clin_tib <- g_clin_tib[sample(nrow(g_clin_tib), 50),]
+#g_clin_tib <- g_clin_tib[sample(nrow(g_clin_tib), 50),]
 
 write.csv(g_clin_tib, "glioblastome2013.csv")
 ##Obtain covariates and observations and censored times
