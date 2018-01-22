@@ -31,52 +31,93 @@ aggr(g_clin_tib, prop = FALSE, combined = TRUE, numbers = TRUE, sortVars = TRUE,
 
 g_clin_tib <- g_clin_tib %>%
   select(-CANCER_TYPE, -CANCER_TYPE_DETAILED, -ONCOTREE_CODE) %>%   ##Non informative all are Gliobastome Multiforme and GBM
-  filter(!is.na(OS_STATUS))
+  filter(!is.na(DFS_MONTHS))
 aggr(g_clin_tib, prop = FALSE, combined = TRUE, numbers = TRUE, sortVars = TRUE, sortCombs = TRUE)
 
 ##sample
 set.seed(1573)
-#g_clin_tib <- g_clin_tib[sample(nrow(g_clin_tib), 50),]
+#g_clin_tib <- g_clin_tib[sample(nrow(g_clin_tib), 200),]
 
-write.csv(g_clin_tib, "glioblastome2013.csv")
-##Obtain covariates and observations and censored times
-Xobs <- g_clin_tib %>%
-  filter(OS_STATUS == "DECEASED") %>%
-  select(-OS_STATUS, -OS_MONTHS, -DFS_MONTHS, -DFS_STATUS, -sample)  ##only keep explanatory vars
+#########################################################
+##########Select Clinical Variables
+g_clin_tib <- rownames_to_column(g_clin_tib, var = "index")
+x <- g_clin_tib %>%
+  mutate(
+    TMZTherapy = index %in% (starts_with("TMZ", vars = THERAPY_CLASS)),
+    UnspecifiedTherapy = index %in% (starts_with("Unspecified", vars = THERAPY_CLASS)),
+    NonstandardTherapy = index %in% (starts_with("Nonstandard", vars = THERAPY_CLASS)),
+    AlkylatingTherapy = index %in% (starts_with("Alkylating", vars = THERAPY_CLASS))
+  ) %>%
+  select(TMZTherapy, UnspecifiedTherapy, NonstandardTherapy, AlkylatingTherapy, AGE, SEX)
+  
+x <- model.matrix(~., x)
 
-yobs <- g_clin_tib %>%
-  filter(OS_STATUS == "DECEASED") %>%
-  select(OS_MONTHS)
+#Select response variates
 
-Xcen <- g_clin_tib %>%
-  filter(OS_STATUS != "DECEASED") %>%
-  select(-OS_STATUS, -OS_MONTHS, -DFS_MONTHS, -DFS_STATUS, -sample)  ##only keep explanatory vars
+y <- g_clin_tib$DFS_MONTHS
 
-ycen <- g_clin_tib %>%
-  filter(OS_STATUS != "DECEASED") %>%
-  select(OS_MONTHS)
+event <- g_clin_tib %>% mutate(
+    event = (DFS_STATUS == "Recurred/Progressed")
+  )  %>%
+  select(event) %>% unlist()
 
-##Further subclassify in classical covariates and new biomarkers
+## create data set
 
-Xobs_bg <- Xobs %>%
-  select(AGE, SEX, THERAPY_CLASS)
-Xobs_biom <- Xobs %>%
-  select(-AGE, -SEX, -THERAPY_CLASS)
+N <- length(y)
+M <- ncol(x)
+data <-  list(x = x,
+            y = y,
+            event = event,
+            N = N,
+            M =M)
 
-Xcen_bg <- Xcen %>%
-  select(AGE, SEX, THERAPY_CLASS)
-Xcen_biom <- Xcen %>%
-  select(-AGE, -SEX, -THERAPY_CLASS)
+## create initial estimates
+init_wei <- function() list(
+  tau_s_raw = abs(rnorm(1)),
+  tau_raw = abs(rnorm(M)),
+  alpha_raw = rnorm( 1, sd = 0.1),
+  beta_raw = rnorm(M),
+  mu = rnorm(1)
+)
+init_exp <- function() list(
+  tau_s_raw = abs(rnorm(1)),
+  tau_raw = abs(rnorm(M)),
+  beta_raw = rnorm(M)
+)
 
-#transform to model matrix
 
-Xobs_bg <- model.matrix(~., Xobs_bg)
-Xobs_biom <- model.matrix(~., Xobs_biom)
-Xcen_bg <- model.matrix(~., Xcen_bg)
-Xcen_biom <- model.matrix(~., Xcen_biom)
-#
+## Specify the variables for which you want history and density plots
+parametersToPlot <- c("beta_raw", "alpha_raw", "mu")
 
-Nobs <- 49
-Ncen <- 16
-M_bg <- 
-M_
+## Additional variables to monitor
+otherRVs <- c( "log_lik", "yhat_uncens")
+
+parameters <- c(parametersToPlot, otherRVs)
+
+################################################################################################
+# run Stan
+
+library(rstan)
+nchains <- 1
+niter <- 1000
+nwarmup <- 500
+
+fit_wei_clinical_bg <- stan(file = "clinical_weibull.stan", 
+                        data = data, 
+                        pars = parameters,
+                        init = init_wei, 
+                        chains = nchains, 
+                        iter = niter,
+                        warmup = nwarmup,
+                        control = list(stepsize = 0.01, adapt_delta = 0.99),
+                        cores = min(nchains, parallel::detectCores())) 
+
+fit_exp_clinical_bg <- stan(file = "exponential_clinical.stan", 
+               data = data, 
+               init = init_exp, 
+               chains = nchains, 
+               iter = niter,
+               warmup = nwarmup,
+               control = list(stepsize = 0.01, adapt_delta = 0.99),
+               cores = min(nchains, parallel::detectCores())) 
+
