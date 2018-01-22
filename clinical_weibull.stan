@@ -61,9 +61,9 @@ transformed parameters {
 }
 model {
   // priors
-  beta_raw ~ normal(0.0, 1.0);
-  alpha_raw ~ normal(0.0, 0.1);
-  mu ~ normal(0.0, tau_mu);
+  target += normal_lpdf(beta_raw | 0.0, 1.0);
+  target += normal_lpdf(alpha | 0.0, 1.0);
+  target += normal_lpdf(mu | 0.0, tau_mu)
   print("A");
   // likelihood
   for (n in 1:N) {
